@@ -2,7 +2,11 @@ package com.zxtcode.alogger;
 
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
+import android.view.View;
 import android.widget.TextView;
+
+import java.util.logging.Logger;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -11,14 +15,21 @@ public class MainActivity extends AppCompatActivity {
         System.loadLibrary("native-lib");
     }
 
+    private ALogger mLog = new ALogger(MainActivity.class.getSimpleName());
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         // Example of a call to a native method
         TextView tv = (TextView) findViewById(R.id.sample_text);
         tv.setText(stringFromJNI());
+        tv.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mLog.v("hello");
+            }
+        });
     }
 
     /**
