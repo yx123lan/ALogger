@@ -3,7 +3,6 @@
 //
 #include "LogManager.h"
 
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
@@ -15,28 +14,35 @@ LogManager::LogManager()
 
 LogManager::~LogManager()
 {
-    close(logFile);
     if (memData != MAP_FAILED)
     {
-        munmap(memData, logFileSize);
+        munmap(memData, (size_t)logFileSize);
     }
 }
 
-LogManager::LogManager(const LogManager &)
-{
-
-}
-
-LogManager& LogManager::operator=(const LogManager &)
-{
-
-}
 /**
- * 打开日志文件
+ * 初始化日志文件
  */
-int LogManager::openLogFile(const char *path)
+int LogManager::openLogFile(const char *logFilePath)
 {
-    return open(path, O_RDWR | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
+    if (logFile != 0)
+    {
+        return OPEN_LOG_FILE_ALREADY;
+    }
+    logFile = open(logFilePath, O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+    logFileSize = lseek(logFile, MEM_ADD, SEEK_END);
+    if (logFileSize > 0)
+    {
+        char end = EOF;
+        ssize_t status = write(logFile, &end, sizeof(end));
+        if (status != -1)
+        {
+            close(logFile);
+            return OPEN_LOG_FILE_SUCCESS;
+        }
+    }
+    close(logFile);
+    return OPEN_LOG_FILE_FAILURE;
 }
 
 /**
@@ -44,16 +50,42 @@ int LogManager::openLogFile(const char *path)
  */
 void LogManager::init(const char *logFilePath)
 {
-    logFile = openLogFile("");
-    logFileSize = lseek(logFile, MEM_ADD, SEEK_END);
-    memData = static_cast<int*> (mmap(NULL, (size_t)logFileSize, PROT_WRITE, MAP_SHARED, logFileSize - MEM_ADD, 0));
+    ssize_t status = openLogFile(logFilePath);
+    if (status == OPEN_LOG_FILE_SUCCESS)
+    {
+        memData = static_cast<char* > (mmap(NULL, (size_t)logFileSize, PROT_WRITE, MAP_SHARED, logFile, 0));
+    }
+    else if(status == OPEN_LOG_FILE_FAILURE)
+    {
+        memData = static_cast<char* > MAP_FAILED;
+    }
 }
+
+std::string& getCurrentFormatTimeString()
+{
+    struct timeval  tv;
+    char timeArray[64];
+    gettimeofday(&tv, NULL);
+    memset(timeArray, 0, sizeof(timeArray));
+    strftime(timeArray, sizeof(timeArray) - 1, "%F %T", localtime(&tv.tv_sec));
+    char msTimeArray[16];
+    sprintf(msTimeArray, "%ld", tv.tv_usec);
+    strcat(strcat(timeArray, "."), msTimeArray);
+    return *(new std::string(timeArray));
+}
+
 /**
  * 输出日志
  */
-void LogManager::println(const char* tag, const char* msg)
+void LogManager::println(std::string tag, std::string msg)
 {
-    if (memData != MAP_FAILED) {
-
+    if (memData != MAP_FAILED && msg.length() > 0)
+    {
+        std::string& time = getCurrentFormatTimeString();
+        const char* line = (time + " [" + tag + "] " + msg + "\n").c_str();
+        size_t lineByteSize = strlen(line) + 1;
+        delete &time;
+        memcpy(memData + logFileOffset, line, lineByteSize);
+        logFileOffset += lineByteSize;
     }
 }

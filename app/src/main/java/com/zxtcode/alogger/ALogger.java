@@ -14,6 +14,11 @@ public final class ALogger {
 
     private String mTag;
 
+    // Used to load the 'native-lib' library on application startup.
+    static {
+        System.loadLibrary("native-lib");
+    }
+
     public ALogger(String tag) {
         mTag = tag;
     }
@@ -40,8 +45,5 @@ public final class ALogger {
 
     private native void println(int priority, String tag, String msg);
 
-    static {
-        System.loadLibrary("native-lib");
-    }
-
+    public native void init(String path);
 }

@@ -3,11 +3,10 @@
 //
 
 #include <cwchar>
+#include <string>
 
 #ifndef ALOGGER_LOGMANAGER_H
 #define ALOGGER_LOGMANAGER_H
-
-#endif //ALOGGER_LOGMANAGER_H
 class LogManager
 {
 public:
@@ -24,22 +23,27 @@ public:
     /**
      * 输出日志
      */
-    void println(const char *tag, const char *msg);
+    void println(std::string tag, std::string msg);
 
 private:
-    const long MEM_ADD = 80 * 1024;
+    const size_t MEM_ADD = 80 * 1024;
+    const ssize_t OPEN_LOG_FILE_FAILURE = -1;
+    const ssize_t OPEN_LOG_FILE_SUCCESS = 1;
+    const ssize_t OPEN_LOG_FILE_ALREADY = 2;
 
     int logFile;
-    int *memData;
-    long logFileSize;
+    char *memData;
+    long logFileOffset = 0;
+    long logFileSize = 0;
 
     LogManager();
     ~LogManager();
-    LogManager(const LogManager&);
-    LogManager& operator=(const LogManager&);
+    LogManager(const LogManager&) = delete;
+    LogManager& operator=(const LogManager&) = delete;
 
     /**
-     * 打开日志文件
+     * 初始化日志文件
      */
-    int openLogFile(const char *path);
+    int openLogFile(const char *logFilePath);
 };
+#endif //ALOGGER_LOGMANAGER_H
