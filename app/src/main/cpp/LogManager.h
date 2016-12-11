@@ -27,6 +27,8 @@ public:
 
 private:
     const size_t MEM_ADD = 80 * 1024;
+    const char FILE_END = EOF;
+    const char LINE_END = '\n';
     const ssize_t OPEN_LOG_FILE_FAILURE = -1;
     const ssize_t OPEN_LOG_FILE_SUCCESS = 1;
     const ssize_t OPEN_LOG_FILE_ALREADY = 2;
@@ -45,5 +47,7 @@ private:
      * 初始化日志文件
      */
     int openLogFile(const char *logFilePath);
+    void expandLogFile();
+    void mmapLogFile();
 };
 #endif //ALOGGER_LOGMANAGER_H

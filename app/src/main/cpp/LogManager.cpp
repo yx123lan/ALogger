@@ -16,6 +16,7 @@ LogManager::~LogManager()
 {
     if (memData != MAP_FAILED)
     {
+        close(logFile);
         munmap(memData, (size_t)logFileSize);
     }
 }
@@ -33,16 +34,20 @@ int LogManager::openLogFile(const char *logFilePath)
     logFileSize = lseek(logFile, MEM_ADD, SEEK_END);
     if (logFileSize > 0)
     {
-        char end = EOF;
-        ssize_t status = write(logFile, &end, sizeof(end));
+        ssize_t status = write(logFile, &FILE_END, sizeof(FILE_END));
         if (status != -1)
         {
-            close(logFile);
             return OPEN_LOG_FILE_SUCCESS;
         }
     }
-    close(logFile);
     return OPEN_LOG_FILE_FAILURE;
+}
+
+void LogManager::expandLogFile()
+{
+    munmap(memData, (size_t)logFileSize);
+    logFileSize = lseek(logFile, logFileOffset, SEEK_END);
+    mmapLogFile();
 }
 
 /**
@@ -53,11 +58,26 @@ void LogManager::init(const char *logFilePath)
     ssize_t status = openLogFile(logFilePath);
     if (status == OPEN_LOG_FILE_SUCCESS)
     {
-        memData = static_cast<char* > (mmap(NULL, (size_t)logFileSize, PROT_WRITE, MAP_SHARED, logFile, 0));
+        mmapLogFile();
     }
     else if(status == OPEN_LOG_FILE_FAILURE)
     {
         memData = static_cast<char* > MAP_FAILED;
+    }
+}
+
+void LogManager::mmapLogFile()
+{
+    memData = static_cast<char* > (mmap(NULL, MEM_ADD, PROT_WRITE, MAP_SHARED, logFile, logFileSize - MEM_ADD));
+    if (logFileSize > (MEM_ADD + sizeof(FILE_END)))
+    {
+        for (int i = 0; i < MEM_ADD; i++)
+        {
+            if (*(memData + i) == '\n')
+            {
+                logFileOffset = i;
+            }
+        }
     }
 }
 
@@ -82,9 +102,13 @@ void LogManager::println(std::string tag, std::string msg)
     if (memData != MAP_FAILED && msg.length() > 0)
     {
         std::string& time = getCurrentFormatTimeString();
-        const char* line = (time + " [" + tag + "] " + msg + "\n").c_str();
+        const char* line = (time + " [" + tag + "] " + msg + std::string(&LINE_END)).c_str();
         size_t lineByteSize = strlen(line) + 1;
         delete &time;
+        if ((logFileOffset + lineByteSize) > MEM_ADD)
+        {
+            expandLogFile();
+        }
         memcpy(memData + logFileOffset, line, lineByteSize);
         logFileOffset += lineByteSize;
     }
