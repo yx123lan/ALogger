@@ -4,6 +4,7 @@
 
 #include <cwchar>
 #include <string>
+#include <unistd.h>
 
 #ifndef ALOGGER_LOGMANAGER_H
 #define ALOGGER_LOGMANAGER_H
@@ -26,9 +27,11 @@ public:
     void println(std::string tag, std::string msg);
 
 private:
-    const size_t MEM_ADD = 80 * 1024;
     const char FILE_END = EOF;
     const char LINE_END = '\n';
+    // 内存文件的扩充量
+    const size_t MEM_ADD = 1 * getpagesize();
+
     const ssize_t OPEN_LOG_FILE_FAILURE = -1;
     const ssize_t OPEN_LOG_FILE_SUCCESS = 1;
     const ssize_t OPEN_LOG_FILE_ALREADY = 2;

@@ -3,6 +3,8 @@
 //
 #include "LogManager.h"
 
+#include <errno.h>
+#include <sys/uio.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
@@ -16,8 +18,8 @@ LogManager::~LogManager()
 {
     if (memData != MAP_FAILED)
     {
-        close(logFile);
         munmap(memData, (size_t)logFileSize);
+        close(logFile);
     }
 }
 
@@ -31,23 +33,46 @@ int LogManager::openLogFile(const char *logFilePath)
         return OPEN_LOG_FILE_ALREADY;
     }
     logFile = open(logFilePath, O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
-    logFileSize = lseek(logFile, MEM_ADD, SEEK_END);
-    if (logFileSize > 0)
+    logFileSize = lseek(logFile, 0, SEEK_END);
+    // 文件大小是否等于0，是的话说明是刚创建的文件，需要扩充一定的大小
+    if(logFileSize == 0)
     {
-        ssize_t status = write(logFile, &FILE_END, sizeof(FILE_END));
-        if (status != -1)
+        // 准备扩充文件大小
+        logFileSize = lseek(logFile, MEM_ADD - sizeof(FILE_END), SEEK_END);
+        // 判断是否申请扩充成功
+        if (logFileSize > 0)
         {
-            return OPEN_LOG_FILE_SUCCESS;
+            // 将文件结束符号写到末尾
+            ssize_t status = write(logFile, &FILE_END, sizeof(FILE_END));
+            // 判断最终是否扩充成功
+            if (status != -1)
+            {
+                logFileSize += sizeof(FILE_END);
+                return OPEN_LOG_FILE_SUCCESS;
+            }
         }
+    } else {
+        return OPEN_LOG_FILE_SUCCESS;
     }
     return OPEN_LOG_FILE_FAILURE;
 }
 
 void LogManager::expandLogFile()
 {
+    // 取消映射
     munmap(memData, (size_t)logFileSize);
-    logFileSize = lseek(logFile, logFileOffset, SEEK_END);
-    mmapLogFile();
+    // 扩充文件
+    logFileSize = lseek(logFile, MEM_ADD - sizeof(FILE_END), SEEK_END);
+    if (logFileSize > 0) {
+        ssize_t status = write(logFile, &FILE_END, sizeof(FILE_END));
+        if (status != -1)
+        {
+            logFileSize += sizeof(FILE_END);
+            logFileOffset = 0;
+            // 重新映射
+            mmapLogFile();
+        }
+    }
 }
 
 /**
@@ -68,15 +93,17 @@ void LogManager::init(const char *logFilePath)
 
 void LogManager::mmapLogFile()
 {
-    memData = static_cast<char* > (mmap(NULL, MEM_ADD, PROT_WRITE, MAP_SHARED, logFile, logFileSize - MEM_ADD));
-    if (logFileSize > (MEM_ADD + sizeof(FILE_END)))
+    off_t offset = logFileSize - MEM_ADD;
+    memData = static_cast<char* > (mmap(NULL, MEM_ADD, PROT_WRITE | PROT_READ, MAP_SHARED, logFile, offset));
+    if (memData == MAP_FAILED)
     {
-        for (int i = 0; i < MEM_ADD; i++)
+        return;
+    }
+    for (int i = 0; i < MEM_ADD; i++)
+    {
+        if (*(memData + i) == '\n')
         {
-            if (*(memData + i) == '\n')
-            {
-                logFileOffset = i;
-            }
+            logFileOffset = i;
         }
     }
 }
@@ -109,7 +136,10 @@ void LogManager::println(std::string tag, std::string msg)
         {
             expandLogFile();
         }
-        memcpy(memData + logFileOffset, line, lineByteSize);
-        logFileOffset += lineByteSize;
+        if (memData != MAP_FAILED)
+        {
+            memcpy(memData + logFileOffset, line, lineByteSize);
+            logFileOffset += lineByteSize;
+        }
     }
 }
