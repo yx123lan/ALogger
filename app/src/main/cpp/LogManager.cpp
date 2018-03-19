@@ -107,7 +107,6 @@ void LogManager::mmapLogFile()
         }
     }
 }
-
 std::string& getCurrentFormatTimeString()
 {
     struct timeval  tv;
@@ -120,6 +119,7 @@ std::string& getCurrentFormatTimeString()
     strcat(strcat(timeArray, "."), msTimeArray);
     return *(new std::string(timeArray));
 }
+
 
 /**
  * 输出日志

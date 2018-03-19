@@ -28,7 +28,7 @@ public class MainActivity extends AppCompatActivity {
         tv.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                mLog.v("hello");
+                mLog.v("hello alogger " + Math.random() * 10000);
             }
         });
     }
